@@ -1,54 +1,160 @@
 <!DOCTYPE html>
-<html lang="de">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>E-Mail Registrierung</title>
+    <title>Bulk E-Mail Registrierung</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px; }
-        input, button { padding: 10px; width: 100%; margin-bottom: 10px; }
-        button { background: #007BFF; color: white; border: none; cursor: pointer; }
-        button:hover { background: #0056b3; }
-        #message { margin-top: 10px; padding: 10px; border-radius: 5px; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; border-radius: 8px; }
+        textarea, input, button { width: 100%; padding: 10px; margin-bottom: 10px; }
+        button { background: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:disabled { background: #cccccc; }
+        #status { margin-top: 20px; padding: 10px; border-radius: 4px; }
+        .progress { margin-top: 10px; height: 20px; background: #e0e0e0; }
+        #progressBar { height: 100%; background: #4CAF50; width: 0%; }
     </style>
 </head>
 <body>
-    <h1>E-Mail Registrierung</h1>
-    <form id="emailForm">
-        <input type="email" id="email" placeholder="E-Mail-Adresse" required>
-        <button type="submit">Registrieren</button>
-    </form>
-    <div id="message"></div>
+    <div class="container">
+        <h2>Bulk E-Mail Registrierung</h2>
+        
+        <input type="file" id="csvFile" accept=".csv">
+        <textarea id="emails" placeholder="Oder E-Mails direkt eingeben (eine pro Zeile)"></textarea>
+        <button id="startBtn">Registrierung starten</button>
+        <button id="pauseBtn" disabled>Pause</button>
+        
+        <div class="progress">
+            <div id="progressBar"></div>
+        </div>
+        
+        <div id="status">Bereit...</div>
+    </div>
 
     <script>
-        document.getElementById("emailForm").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const email = document.getElementById("email").value;
-            const messageDiv = document.getElementById("message");
-
-            try {
-                const response = await fetch("https://dein-server.de/api/register", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: email }),
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    messageDiv.textContent = "✅ E-Mail erfolgreich registriert!";
-                    messageDiv.className = "success";
-                } else {
-                    messageDiv.textContent = `❌ Fehler: ${result.error || "Unbekannter Fehler"}`;
-                    messageDiv.className = "error";
-                }
-            } catch (error) {
-                messageDiv.textContent = "❌ Netzwerkfehler – bitte versuche es später erneut.";
-                messageDiv.className = "error";
+        let emails = [];
+        let currentIndex = 0;
+        let isPaused = false;
+        let timer = null;
+        
+        // CSV Datei lesen
+        document.getElementById('csvFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                emails = content.split('\n')
+                    .map(line => line.trim().split(',')[0]) // Erste Spalte als E-Mail
+                    .filter(email => email.includes('@'));
+                updateStatus(`CSV geladen: ${emails.length} E-Mails gefunden`);
+            };
+            reader.readAsText(file);
+        });
+        
+        // Manuelle E-Mail Eingabe
+        document.getElementById('emails').addEventListener('input', function(e) {
+            emails = e.target.value.split('\n')
+                .map(email => email.trim())
+                .filter(email => email.includes('@'));
+        });
+        
+        // Registrierung starten
+        document.getElementById('startBtn').addEventListener('click', function() {
+            if (emails.length === 0) {
+                updateStatus('Keine E-Mails gefunden', 'error');
+                return;
+            }
+            
+            this.disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            updateStatus('Registrierung gestartet...');
+            processNextEmail();
+        });
+        
+        // Pause Knopf
+        document.getElementById('pauseBtn').addEventListener('click', function() {
+            isPaused = !isPaused;
+            this.textContent = isPaused ? 'Fortsetzen' : 'Pause';
+            
+            if (!isPaused) {
+                processNextEmail();
+            } else {
+                clearTimeout(timer);
+                updateStatus('Pausiert...');
             }
         });
+        
+        function processNextEmail() {
+            if (isPaused || currentIndex >= emails.length) {
+                if (currentIndex >= emails.length) {
+                    updateStatus('Alle E-Mails verarbeitet!', 'success');
+                    document.getElementById('startBtn').disabled = false;
+                }
+                return;
+            }
+            
+            const email = emails[currentIndex];
+            registerEmail(email);
+            
+            // Fortschritt aktualisieren
+            const progress = Math.round((currentIndex / emails.length) * 100);
+            document.getElementById('progressBar').style.width = progress + '%';
+            
+            currentIndex++;
+            updateStatus(`Verarbeite: ${email} (${currentIndex}/${emails.length})`);
+            
+            // Zufällige Pause zwischen 3 und 47 Minuten (180000-2820000 ms)
+            const delay = Math.floor(Math.random() * (2820000 - 180000 + 1)) + 180000;
+            timer = setTimeout(processNextEmail, delay);
+        }
+        
+        function registerEmail(email) {
+            // Hier würde normalerweise die SendSteed API aufgerufen werden
+            // Für Demo zeigen wir nur die simulierte Registrierung
+            console.log(`Registriere: ${email}`);
+            
+            // Simulierter Formular-Submit
+            const form = document.createElement('form');
+            form.method = 'post';
+            form.action = 'https://www.sendsteed.com/subscribe/';
+            form.style.display = 'none';
+            
+            const emailInput = document.createElement('input');
+            emailInput.type = 'hidden';
+            emailInput.name = 'e110570';
+            emailInput.value = email;
+            
+            const nameInput = document.createElement('input');
+            nameInput.type = 'hidden';
+            nameInput.name = 'n110570';
+            nameInput.value = 'Newsletter Subscriber'; // Standard Name
+            
+            const listInput = document.createElement('input');
+            listInput.type = 'hidden';
+            listInput.name = 'lllid';
+            listInput.value = '110570';
+            
+            const userInput = document.createElement('input');
+            userInput.type = 'hidden';
+            userInput.name = 'lluid';
+            userInput.value = 'sandyarta';
+            
+            form.appendChild(emailInput);
+            form.appendChild(nameInput);
+            form.appendChild(listInput);
+            form.appendChild(userInput);
+            
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.backgroundColor = type === 'error' ? '#ffdddd' : 
+                                         type === 'success' ? '#ddffdd' : '#ddddff';
+        }
     </script>
 </body>
 </html>
